@@ -11,7 +11,7 @@ async function mainPrompt() {
         type: 'list',
         name: 'response',
         message: 'What would you like to do?',
-        choices: ["View Department", "View Roles", "View Employees", "Add Department", "Add Role", "Add Employee", "Update Employee Role"]
+        choices: ["View Department", "View Roles", "View Employees", "Add Department", "Add Role", "Add Employee", "Update Employee Role", "Exit"]
     })
     switch (response) {
         case 'View Employees':
@@ -35,7 +35,10 @@ async function mainPrompt() {
         case 'Update Employee Role':
             await updateEmployeeRole();
             break;
-        default: mainPrompt
+        case 'Exit':
+            connection.end();
+            break;
+        default: console.log('Invalid action');
     }
 }
 
@@ -43,6 +46,7 @@ async function viewTable(tableName) {
     const tableData = await connection.query(`SELECT * FROM employeeDB.${tableName}`);
     const table = cTable.getTable(tableData)
     console.log(table)
+    mainPrompt();
 }
 
 async function addDepartment() {
@@ -65,13 +69,19 @@ async function addDepartment() {
 async function addEmployee() {
     const employees = await connection.query("SELECT * FROM employeeDB.employee");
     const roles = await connection.query("SELECT * FROM employeeDB.role");
+
     const employeeChoices = employees.map(employee => {
         return {
             name: `${employee.first_name} ${employee.last_name} `,
-            value: employee.manager_id
+            value: employee.id
         }
     });
-    //in role table change role titles 
+
+    employeeChoices.push({
+        name: "None",
+        value: null
+    })
+
     const roleChoices = roles.map(role => {
         return {
             name: role.title,
@@ -79,8 +89,8 @@ async function addEmployee() {
         }
     });
 
-    roleChoices;
     employeeChoices;
+    roleChoices;
 
     const employeeData = await prompt([{
         type: 'input',
@@ -101,8 +111,7 @@ async function addEmployee() {
         message: 'Who is the manager for this employee?',
         choices: employeeChoices
     }])
-    employeeData.roleId = await roleChoices.indexOf(employeeData.roleId) + 1;
-    employeeData.manager = await employeeChoices.indexOf(employeeData.manager) + 1;
+
     connection.query('INSERT INTO employeeDB.employee SET ?', {
         first_name: employeeData.firstName,
         last_name: employeeData.lastName,
@@ -156,27 +165,42 @@ async function addRole() {
 
 async function updateEmployeeRole() {
     const employees = await connection.query("SELECT * FROM employeeDB.employee");
+    const roles = await connection.query("SELECT * FROM employeeDB.role");
     const employeeChoices = employees.map(employee => {
         return {
             name: `${employee.first_name} ${employee.last_name} `,
             value: employee.id
         }
     })
-    //in role table change role titles 
+
     const roleChoices = roles.map(role => {
         return {
             name: role.title,
             value: role.id
         }
     })
-    // prompt([{
-    //which employee to upadte 
-    //what new role to be?
-    //in each question, type, name, message, choices
-    //choices: employeeChoices
-    //choices: roleChoices
-    // }])
-    // connection.query("UPDATE employee SET role_id = ? WHERE id = ?", [
-    //     //answer to the role question, answer to the emplyee question 
-    // ])
+    roleChoices;
+    employeeChoices;
+
+    const employeeData = await prompt([{
+        type: 'list',
+        name: 'employee',
+        message: 'Which employee would you like to update?',
+        choices: employeeChoices
+    }, {
+        type: 'list',
+        name: 'roleId',
+        message: 'What is the new role of the employee?',
+        choices: roleChoices
+    }])
+
+    connection.query('UPDATE employeeDB.employee SET role_id = ? WHERE id = ?', [
+        employeeData.roleId, employeeData.employee
+    ],
+        (err) => {
+            if (err) throw err;
+            console.log('your role was successfully added!');
+            mainPrompt();
+        }
+    );
 }
