@@ -63,23 +63,24 @@ async function addDepartment() {
 }
 
 async function addEmployee() {
-    const roles = await connection.query('SELECT * from employeeDB.role');
-    const employees = await connection.query('SELECT * from employeeDB.employee');
-    const roleList = [];
-    const employeeList = [];
-
-    roles.map(role => {
-        roleList.push(role.title)
-    });
-    employees.map(employee => {
+    const employees = await connection.query("SELECT * FROM employeeDB.employee");
+    const roles = await connection.query("SELECT * FROM employeeDB.role");
+    const employeeChoices = employees.map(employee => {
         return {
-            name: `${employee.first_name} ${employee.last_name}`,
-            value: employee.id
+            name: `${employee.first_name} ${employee.last_name} `,
+            value: employee.manager_id
+        }
+    });
+    //in role table change role titles 
+    const roleChoices = roles.map(role => {
+        return {
+            name: role.title,
+            value: role.id
         }
     });
 
-    roleList;
-    employeeList;
+    roleChoices;
+    employeeChoices;
 
     const employeeData = await prompt([{
         type: 'input',
@@ -93,19 +94,19 @@ async function addEmployee() {
         type: 'list',
         name: 'roleId',
         message: 'What is the role of the employee?',
-        choices: roleList
+        choices: roleChoices
     }, {
         type: 'list',
         name: 'manager',
         message: 'Who is the manager for this employee?',
-        choices: employeeList
+        choices: employeeChoices
     }])
-    employeeData.roleId = await roleList.indexOf(employeeData.roleId) + 1;
-    employeeData.manager = await employeeList.indexOf(employeeData.manager) + 1;
+    employeeData.roleId = await roleChoices.indexOf(employeeData.roleId) + 1;
+    employeeData.manager = await employeeChoices.indexOf(employeeData.manager) + 1;
     connection.query('INSERT INTO employeeDB.employee SET ?', {
         first_name: employeeData.firstName,
         last_name: employeeData.lastName,
-        role_id: employeeData.role,
+        role_id: employeeData.roleId,
         manager_id: employeeData.manager
     },
         (err) => {
