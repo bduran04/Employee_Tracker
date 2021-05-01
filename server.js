@@ -1,69 +1,158 @@
 const connection = require('./connection');
 require('console.table');
 const cTable = require('console.table');
-const {prompt} = require('inquirer');
+const { prompt } = require('inquirer');
 const { listenerCount } = require('./connection');
 
 mainPrompt();
 
 async function mainPrompt() {
-const {response} = await prompt({
-    type: 'list',
-    name: 'response',
-    message: 'What would you like to do?',
-    choices: ["View Department", "View Roles", "View Employees", "Add Departents", "Add Roles", "Add Employee", "Update employee role"]
-})
-console.log(response)
-    switch(response) {
+    const { response } = await prompt({
+        type: 'list',
+        name: 'response',
+        message: 'What would you like to do?',
+        choices: ["View Department", "View Roles", "View Employees", "Add Department", "Add Role", "Add Employee", "Update Employee Role"]
+    })
+    switch (response) {
         case 'View Employees':
-            viewTable('employee');
+            await viewTable('employee');
             break;
         case 'View Department':
-            viewTable('department');
+            await viewTable('department');
             break;
         case 'View Roles':
-            viewTable('role');
+            await viewTable('role');
+            break;
+        case 'Add Department':
+            await addDepartment();
             break;
         case 'Add Employee':
-            const {employeeData} = await prompt({
-                type: 'list',
-                name: 'response',
-                message: 'First Name?'
-            })
-            addToTable(employeeData, 'employee');
+            await addEmployee();
             break;
-            case 'Add Roles':
-                const departments = await connection.query('SELECT * from employeeDB.department');
-                departmentList = [];
-                departments.map(department => {
-                    departmentList.push(departmentList.name);
-                })
-                const {roleChoice} = await prompt([{
-                    type: 'input',
-                    name: 'role',
-                    message: 'Role Name?'
-                }, {
-                    type: 'input',
-                    name: 'salary',
-                    message: 'salary?'
-                },
-                {
-                    type: 'list',
-                    name: 'departmentId',
-                    message: 'department?',
-                    choices: departmentList
-                }])
-                roleChoice.department = departmentList.findIndex(roleChoice.department);
-                addToTable(roleChoice, 'role');
-                break;
+        case 'Add Role':
+            await addRole();
+            break;
+        case 'Update Employee Role':
+            await updateEmployeeRole();
+            break;
+        default: mainPrompt
     }
 }
 
 async function viewTable(tableName) {
-    const employees = await connection.query(`SELECT * FROM employeeDB.${tableName}`);
-    const table = cTable.getTable(employees)
+    const tableData = await connection.query(`SELECT * FROM employeeDB.${tableName}`);
+    const table = cTable.getTable(tableData)
     console.log(table)
 }
+
+async function addDepartment() {
+    let departmentData = await prompt({
+        type: 'input',
+        name: 'departmentName',
+        message: 'What Department would you like to add?'
+    })
+    connection.query('INSERT INTO employeeDB.department SET ?', {
+        department_name: departmentData.departmentName
+    },
+        (err) => {
+            if (err) throw err;
+            console.log('The department has been added successfully added!');
+            mainPrompt();
+        }
+    );
+}
+
+async function addEmployee() {
+    const roles = await connection.query('SELECT * from employeeDB.role');
+    const employees = await connection.query('SELECT * from employeeDB.employee');
+    const roleList = [];
+    const employeeList = [];
+
+    roles.map(role => {
+        roleList.push(role.title)
+    });
+    employees.map(employee => {
+        return {
+            name: `${employee.first_name} ${employee.last_name}`,
+            value: employee.id
+        }
+    });
+
+    roleList;
+    employeeList;
+
+    const employeeData = await prompt([{
+        type: 'input',
+        name: 'firstName',
+        message: 'First Name?'
+    }, {
+        type: 'input',
+        name: 'lastName',
+        message: 'Last Name?'
+    }, {
+        type: 'list',
+        name: 'roleId',
+        message: 'What is the role of the employee?',
+        choices: roleList
+    }, {
+        type: 'list',
+        name: 'manager',
+        message: 'Who is the manager for this employee?',
+        choices: employeeList
+    }])
+    employeeData.roleId = await roleList.indexOf(employeeData.roleId) + 1;
+    employeeData.manager = await employeeList.indexOf(employeeData.manager) + 1;
+    connection.query('INSERT INTO employeeDB.employee SET ?', {
+        first_name: employeeData.firstName,
+        last_name: employeeData.lastName,
+        role_id: employeeData.role,
+        manager_id: employeeData.manager
+    },
+        (err) => {
+            if (err) throw err;
+            console.log('your role was successfully added!');
+            mainPrompt();
+        }
+    );
+}
+
+async function addRole() {
+    const departments = await connection.query('SELECT * from employeeDB.department');
+    const departmentList = [];
+    departments.map(department => {
+        departmentList.push(department.department_name)
+    });
+
+    departmentList;
+
+    const roleChoice = await prompt([{
+        type: 'input',
+        name: 'role',
+        message: 'Role Name?'
+    }, {
+        type: 'input',
+        name: 'salary',
+        message: 'salary?'
+    }, {
+        type: 'list',
+        name: 'departmentId',
+        message: 'department?',
+        choices: departmentList
+    }])
+    roleChoice.departmentId = departmentList.indexOf(roleChoice.departmentId) + 1;
+    connection.query('INSERT INTO employeeDB.role SET ?', {
+        department_id: roleChoice.departmentId,
+        title: roleChoice.role,
+        salary: roleChoice.salary
+    },
+        (err) => {
+            if (err) throw err;
+            console.log('your role was successfully added!');
+            mainPrompt();
+        }
+    );
+}
+
 async function updateEmployeeRole() {
     const employees = await connection.query("SELECT * FROM employeeDB.employee");
     const employeeChoices = employees.map(employee => {
@@ -77,51 +166,16 @@ async function updateEmployeeRole() {
         return {
             name: role.title,
             value: role.id
-        } 
+        }
     })
     // prompt([{
-        //which employee to upadte 
-        //what new role to be?
-        //in each question, type, name, message, choices
-        //choices: employeeChoices
-        //choices: roleChoices
+    //which employee to upadte 
+    //what new role to be?
+    //in each question, type, name, message, choices
+    //choices: employeeChoices
+    //choices: roleChoices
     // }])
     // connection.query("UPDATE employee SET role_id = ? WHERE id = ?", [
     //     //answer to the role question, answer to the emplyee question 
     // ])
-}
-
-async function addToTable(name, table) {
-    await connection.query(`INSERT INTO employeeDB.${table} (name) VALUES (${name}`);
-}
-
-async function addRole(data) {
-    await connection.query(`INSERT INTO employeeDB.role (department_id, title, salary) VALUES (${data.departmentId}, ${data.role},${data.salary}`)
-}
-
-function editTable(name, table) {
-    // need from the user the values they are updated
-    // UPDATE `employeeDB`.`${table}` SET `department_id` = '1' WHERE (`id` = '1');
-}
-
-
-function createTableRow() {
-    // 1. Fetch DATA Using that query
-    //
-    // 2. USE DATA FROM SQL QUERY
-    // map over data and construct a "row"
-    // employees.map((employee) => {
-    // tableData = `${employee.id}   ${employee.first_name}  ${employee.ast_name} \n` + tableData
-    //});
-    //
-    //
-    // return this kind of object
-    // to debug, console log tableData after mapping over
-    // `id   first_name  last_name
-    //  id_2   first_name_2  last_name_2 `
-}
-
-
-function removeEmployee() {
-    // inquirer.prompt()
 }
